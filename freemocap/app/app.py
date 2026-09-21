@@ -20,6 +20,7 @@ from skellycam.core.ipc.process_management.worker_registry import WorkerRegistry
 from starlette.responses import FileResponse
 
 import freemocap
+from freemocap.api.mcp.server import register_mcp_server
 from freemocap.api.middleware.add_middleware import add_middleware
 from freemocap.api.middleware.cors import cors
 from freemocap.api.routers import SKELLYCAM_ROUTERS, FREEMOCAP_ROUTERS, APP_ROUTERS
@@ -382,6 +383,7 @@ def create_fastapi_app(
     create_freemocap_app(fastapi_app=app)
     cors(app)
     _register_routes(app)
+    register_mcp_server(app)
     add_middleware(app)
     _customize_openapi(app)
 
