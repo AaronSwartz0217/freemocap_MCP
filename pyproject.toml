@@ -30,6 +30,8 @@ dependencies = [
     # MCP (Model Context Protocol) server
     "fastapi-mcp>=0.1.0",
     "mcp>=1.0,<2",  # fastapi-mcp 0.x is built against mcp 1.x
+    # Storage pool (S3 / MinIO compatible)
+    "boto3>=1.34.0",
 ]
 
 # Published, pip-installable variant selection — for PyPI users, not `uv sync`
