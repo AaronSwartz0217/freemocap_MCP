@@ -11,6 +11,7 @@ from freemocap.api.http.mocap.pose_2d_router import pose_2d_router
 from freemocap.api.http.posthoc.posthoc_router import posthoc_router
 from freemocap.api.http.realtime.realtime_router import realtime_router
 from freemocap.api.http.storage.storage_router import storage_router
+from freemocap.api.http.tasks.tasks_router import tasks_router
 from freemocap.api.http.telemetry.telemetry_router import telemetry_router
 
 APP_ROUTERS = [health_router,
@@ -30,4 +31,5 @@ FREEMOCAP_ROUTERS = [realtime_router,
                      playback_router,
                      telemetry_router,
                      storage_router,
+                     tasks_router,
                      ]

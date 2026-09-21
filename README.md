@@ -45,19 +45,19 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 
 ## 当前状态
 
-> **最新更新**：2026-09-21 — P4 存储池集成完成，支持本地文件系统与 S3/MinIO 两种后端，通过环境变量切换；`/storage/upload`、`/storage/download/{key}`、`/storage/url/{key}`、`/storage/{key}` 端点全部验证通过。
+> **最新更新**：2026-09-21 — P5 任务队列集成完成，支持 Celery + Redis 异步任务执行（无 Redis 时自动降级为进程内线程池）；`POST /tasks/submit`、`GET /tasks/{id}`、`GET /tasks/{id}/result`、`DELETE /tasks/{id}` 端点全部验证通过。
 >
-> **可用性**：✅ MCP 协议层 + 2D 单图姿势检测 + 存储池（local/S3）可正常使用；完整动捕管线（视频/3D）待后续阶段实现。
+> **可用性**：✅ MCP 协议层 + 2D 单图姿势检测 + 存储池（local/S3）+ 任务队列（进程内降级可用，Celery 待 Redis 环境验证）可正常使用；完整动捕管线（视频/3D）待后续阶段实现。
 
 ## 更新日志
 
 | 日期 | 阶段 | 更新内容 | 状态 | 可用性 |
 |---|---|---|---|---|
+| 2026-09-21 | P5 | 任务队列：新增 `freemocap/services/task_queue.py`，`InProcessTaskQueue`（线程池，开发降级）+ `CeleryTaskQueue`（Redis broker/backend）；`tasks_router` 提供提交/状态轮询/结果获取/取消端点；内置 `demo.echo`、`demo.long_task` 测试任务支持进度上报 | ✅ 已完成 | ✅ 进程内后端验证通过，Celery 后端待 Redis 环境验证 |
 | 2026-09-21 | P4 | 存储池集成：新增 `freemocap/services/storage.py` 抽象层（`LocalStorageBackend` + `S3StorageBackend`），`storage_router` 提供上传/下载/URL/删除/存在性检查端点；后端由 `FMC_STORAGE_BACKEND` 环境变量切换，S3 凭证全部走环境变量不硬编码 | ✅ 已完成 | ✅ 本地后端验证通过，S3 后端待 MinIO 环境验证 |
 | 2026-09-21 | P3 | 新增 2D 姿势检测路由 `pose_2d_router`：`POST /pose-2d/image` 上传图片返回 OpenPose 风格骨架 PNG（黑底+彩色骨骼+关节圆圈），`POST /pose-2d/json` 返回 33 个 MediaPipe 关键点；使用 MediaPipe Pose 检测 + OpenCV 绘制 | ✅ 已完成 | ✅ 单图 2D 姿势检测可用 |
 | 2026-09-21 | P2 | 集成 `fastapi-mcp`，将 FastAPI 路由自动暴露为 MCP 工具；挂载 `/mcp`（Streamable HTTP）和 `/sse`（SSE）传输端点；`initialize` + `tools/list` 握手验证通过 | ✅ 已完成 | ✅ MCP 端点可连通，现有 REST 端点自动成为 MCP 工具 |
 | 2026-09-21 | P0~P1 | 仓库 fork 初始化；重写 README（AGPLv3 声明、项目介绍、架构、12 阶段计划）；确认后端 `__main__.py` 可独立作为 FastAPI 服务运行 | ✅ 已完成 | ✅ 后端可独立启动 |
-| — | P5 | 任务队列：Redis + Celery 异步任务 + 进度查询 | ⏳ 待开始 | — |
 | — | P6 | 完整 3D 管线云端跑通 | ⏳ 待开始 | — |
 | — | P7~P12 | 2D 增强 / 多租户 / GPU 调度 / 生产化部署 / 测试验收 / 文档交付 | ⏳ 待开始 | — |
 
