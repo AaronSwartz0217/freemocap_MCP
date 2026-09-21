@@ -104,15 +104,52 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 
 ## MCP 工具清单
 
-| 工具名 | 描述 | 输入 | 输出 |
+通过 `fastapi-mcp`，所有 FastAPI 路由自动暴露为 MCP 工具。MCP Client 连接后可通过 `tools/list` 获取完整工具列表。
+
+> **连接地址**：
+> - Streamable HTTP: `http://<host>:8000/mcp`
+> - SSE: `http://<host>:8000/sse`
+
+### 2D 姿势检测
+
+| 端点 | MCP 工具名 | 输入 | 输出 |
 |---|---|---|---|
-| `ping` | 测试 MCP 连接 | 无 | `{status: "ok"}` |
-| `upload_video` | 上传视频到存储池 | `user_id, session_id, file` | `{key, url}` |
-| `process_2d` | 2D 姿态提取 | `session_id, detector, model_size, ...` | `{task_id}` |
-| `process_3d` | 3D 骨架重建 | `session_id, calibration_key, ...` | `{task_id}` |
-| `calibrate` | 相机标定 | `video_urls` | `{task_id}` |
-| `get_task_status` | 查询任务状态 | `task_id` | `{status, result, progress}` |
-| `get_download_url` | 获取下载链接（预签名 URL） | `key` | `{url}` |
+| `POST /pose-2d/image` | `post_pose_2d_image` | `file` (图片) | OpenPose 风格骨架 PNG |
+| `POST /pose-2d/json` | `post_pose_2d_json` | `file` (图片) | 33 个 MediaPipe 关键点 JSON |
+
+### 3D 动捕
+
+| 端点 | MCP 工具名 | 输入 | 输出 |
+|---|---|---|---|
+| `POST /mocap-3d/run` | `post_mocap_3d_run` | `video_dir`, `calibration_path?`, `tracker?` | `task_id`（异步任务） |
+
+### 存储池
+
+| 端点 | MCP 工具名 | 输入 | 输出 |
+|---|---|---|---|
+| `POST /storage/upload` | `post_storage_upload` | `file`, `prefix?` | `{key, download_url, size_bytes}` |
+| `GET /storage/download/{key}` | `get_storage_download_key` | `key` | 文件二进制 |
+| `GET /storage/url/{key}` | `get_storage_url_key` | `key` | `{url}`（S3 预签名） |
+| `DELETE /storage/{key}` | `delete_storage_key` | `key` | `{deleted: true}` |
+| `GET /storage/info/{key}` | `get_storage_info_key` | `key` | `{exists: true/false}` |
+
+### 异步任务
+
+| 端点 | MCP 工具名 | 输入 | 输出 |
+|---|---|---|---|
+| `GET /tasks/types` | `get_tasks_types` | 无 | 已注册任务类型列表 |
+| `POST /tasks/submit` | `post_tasks_submit` | `task_type`, `payload` | `task_id` |
+| `GET /tasks/{task_id}` | `get_tasks_task_id` | `task_id` | `{state, progress, message, result}` |
+| `GET /tasks/{task_id}/result` | `get_tasks_task_id_result` | `task_id` | 任务结果数据 |
+| `DELETE /tasks/{task_id}` | `delete_tasks_task_id` | `task_id` | `{cancelled: true}` |
+
+### 已注册任务类型
+
+| 任务类型 | 说明 |
+|---|---|
+| `demo.echo` | 回显 payload（测试用） |
+| `demo.long_task` | 模拟长任务，定期上报进度（测试用） |
+| `mocap.run_3d` | 完整 3D 动捕管线（video_dir → 3D 骨架） |
 
 ## 技术栈
 
@@ -169,16 +206,10 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 4. 启动 Python 服务
    ```bash
    uv run python freemocap/__main__.py
-   # 服务启动于 http://localhost:8005
+   # 服务启动于 http://localhost:8000
    ```
 
-### React GUI（上游保留，本分支不再维护）
-
-```bash
-cd freemocap-ui
-npm install
-npm run dev
-```
+> 本分支已去除上游的 Electron/React 前端，仅保留 Python 后端。前端能力通过 MCP 协议由 AI Agent 平台提供。
 
 ## 存储结构
 

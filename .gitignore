@@ -169,3 +169,10 @@ upx.exe
 /CLAUDE.md
 .aider*
 freemocap-ui/freemocap_server
+
+# Local test scripts and outputs (not part of the MCP server)
+test_*.py
+run_pose_on_user_image.py
+test_pose_2d_output.png
+mocap_output/
+freemocap_storage/
