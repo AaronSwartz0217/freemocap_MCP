@@ -103,6 +103,16 @@ def _demo_long_task(payload: dict, report_progress: Callable) -> dict:
     return {"steps": steps, "done": True}
 
 
+@register_task("mocap.run_3d")
+def _mocap_run_3d(payload: dict, report_progress: Callable) -> dict:
+    """Run the full 3D mocap pipeline on a recording folder.
+
+    Payload: {video_dir, calibration_path (optional), output_dir (optional), tracker (optional)}
+    """
+    from freemocap.services.mocap_3d_service import run_3d_mocap
+    return run_3d_mocap(payload, report_progress)
+
+
 # ---------------------------------------------------------------------------
 # Abstract queue backend
 # ---------------------------------------------------------------------------
