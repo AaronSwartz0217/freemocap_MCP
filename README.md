@@ -1,186 +1,160 @@
+# License
 
-# SPECIAL INSTRUCTIONS FOR THE `/development` BRANCH 
+本项目基于 [GNU Affero General Public License v3.0 (AGPLv3)](https://www.gnu.org/licenses/agpl-3.0.html) 开源。任何修改、分发或通过网络提供本项目服务的行为，均须以 AGPLv3 条款公开对应源代码。详见 [LICENSE](LICENSE)。
 
-## Installation
-### Python server
-0. Install `uv` 
-   - https://github.com/astral-sh/uv?tab=readme-ov-file#installation
-1. clone the repo 
-   - `git clone https://github.com/freemocap/freemocap`
-2. Change directory to the repo: 
-   - `cd freemocap`
-3. **Change to the `development` branch:**
-   - `git switch development`
-4. Create virtual environment: 
-   - `uv venv` 
-5. Activate virtual environment
-   - Windows: `.venv/bin/activate`
-   - Mac/Linux: `source .venv/bin/activate`
-6. Install dependencies
-  - `uv sync` — installs skellytracker with NVIDIA GPU acceleration on Windows/Linux, or CPU-only on macOS, automatically
-  - No supported GPU on Windows/Linux? Force the CPU-only build instead: `uv sync --no-default-groups --group cpu`
-### React GUI
-0. Install Node.js
-   - https://nodejs.org/en/download/
-1. Change directory to the `freemocap-ui` folder 
-   - `cd freemocap-ui`
-2. Install dependencies
-   - `npm install`
-
-## Run the FreeMoCap application in development mode 
-1. Start the Python Server:
-   - `python freemocap/__main__.py`
-   - The server should start on `http://localhost:8005`
-2. Start the React GUI:
-   - `npm run dev`
-   - An Electron window should pop up with the FreeMoCap GUI
-
-
-## Build the FreeMoCap application 
-(NOTE - This is not necessary for development, and does not handle the Python server yet)
-1. Change directory to the `freemocap/freemocap-ui` folder
-   - `npm run build`
-   - The build will be in the `freemocap/freemocap-ui/releases` folder
 ---
----
-# STANDARD README CONTINUES BELOW
-___
-___
-___
-<p align="center">
-    <img src="https://github.com/freemocap/freemocap/assets/15314521/da1af7fe-f808-43dc-8f59-c579715d6593" height="240" alt="Project Logo">
-</p> 
 
+# FreeMoCap MCP — 云端动捕 MCP 服务（FMC-Cloud-MCP）
 
-<h3 align="center">The FreeMoCap Project</h3>
-<h4 align="center"> A free-and-open-source, hardware-and-software-agnostic, minimal-cost, research-grade, motion capture
-system and platform for decentralized scientific research, education, and training</h2>
+> 将 FreeMoCap 从桌面应用改造成云端 MCP 工具服务：去掉前端，保留后端计算能力，增加 2D 姿态输出通道，通过 MCP 协议供 AI Agent 平台调用。
 
+## 项目概述
 
-<p align="center">
+FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MCP`）对其进行云端 MCP 化改造，目标是把 FreeMoCap 的 Python 后端（FastAPI）从 Electron 桌面应用中剥离出来，独立部署，并通过 [Model Context Protocol (MCP)](https://modelcontextprotocol.io) 暴露动捕工具，让 AI Agent 平台可以直接调用 2D 姿态提取与 3D 骨架重建能力。
 
-<a href="https://doi.org/10.5281/zenodo.7233714">
-    <img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7233714.svg" alt=DOI-via-Zenodo.org>
-  </a>
+### 核心改造方向
 
-<a href="https://github.com/psf/black">
-    <img alt="https://img.shields.io/badge/code%20style-black-000000.svg" src="https://img.shields.io/badge/code%20style-black-000000.svg">
-  </a>
+| 维度 | 改造前（上游 FreeMoCap） | 改造后（本分支） |
+|---|---|---|
+| 形态 | Electron 桌面应用 | 云端 MCP Server（Docker 容器） |
+| 前端 | React + Electron | **去除**，仅保留后端 |
+| 调用方式 | GUI 点击 | MCP 工具调用（JSON-RPC over HTTP/SSE） |
+| 输出 | 必须跑完整 3D 管线 | 新增 **2D 独立通道**，可只输出 2D 姿态 |
+| 存储 | 本地文件系统 | S3/MinIO 存储池，按 `{user_id}/{session_id}/` 隔离 |
+| 任务 | 同步阻塞 | Redis + Celery 异步队列，支持进度查询 |
+| 资源 | 单机 | GPU Worker 独立队列，多任务调度 |
+| 租户 | 单用户 | 多租户隔离（配额 + 并发限制） |
 
-<a href="https://github.com/freemocap/freemocap/releases/latest">
-        <img src="https://img.shields.io/github/release/freemocap/freemocap.svg" alt="Latest Release">
-    </a>
+### 范围
 
-<a href="https://github.com/freemocap/freemocap/blob/main/LICENSE">
-        <img src="https://img.shields.io/badge/license-AGPL-blue.svg" alt="AGPLv3">
-    </a>
+**包含**
+- FreeMoCap Python 后端剥离与独立部署
+- MCP Server 包装（`fastapi-mcp`）
+- 2D 姿态输出通道开发
+- 云存储（S3/MinIO）集成
+- 异步任务队列（Redis + Celery）
+- GPU 资源调度
+- 多租户隔离
+- 生产化部署（Docker Compose / K8s）
 
-<a href="https://github.com/freemocap/freemocap/issues">
-        <img src="https://img.shields.io/badge/contributions-welcome-ff69b4.svg" alt="Contributions Welcome">
-    </a>
+**不包含**
+- FreeMoCap 前端（Electron/React）的维护
+- 新的姿态估计算法开发
+- 新的 3D 重建算法开发
+- AI Agent 平台本身的开发
 
-<a href="https://github.com/psf/black">
-    <img alt="https://img.shields.io/badge/code%20style-black-000000.svg" src="https://img.shields.io/badge/code%20style-black-000000.svg">
-  </a>
+## 总体架构
 
-<a href="https://discord.gg/SgdnzbHDTG">
-    <img alt="Discord Community Server" src="https://dcbadge.vercel.app/api/server/SgdnzbHDTG?style=flat">
-  </a>
-
-
-</p>
-
-
-https://user-images.githubusercontent.com/15314521/192062522-2a8d9305-f181-4869-a4b9-1aa068e094c9.mp4
-
-
-
-
-
---
-## QUICKSTART
-
-#### 0. Create a a Python 3.9 through 3.11 environment (python3.11 recommended)¶
-#### 1. Install software via [pip](https://pypi.org/project/freemocap/#description):
-
-`freemocap` requires the `cuda` or `cpu` extra to be specified — plain `pip install freemocap` will install without its tracker. Pick one:
-
-```
-pip install freemocap[cuda]   # Windows/Linux with an NVIDIA GPU
-```
-
-```
-pip install freemocap[cpu]    # macOS, or Windows/Linux without a supported GPU
-```
-
-#### 2. Launch the GUI by entering the command:
-
-```
-freemocap
-``` 
-
-####  3. A GUI should pop up that looks like this: 
-
-   <img width="1457" alt="image" src="https://github.com/freemocap/freemocap/assets/15314521/90ef7e7b-48f3-4f46-8d4a-5b5bcc3254b3">
-
-#### 4. Have fun! It might break!  Work in Progress lol
-
-#### 5. [Join the Discord and let us know how it went!](https://discord.gg/nxv5dNTfKT)
-
-
-
-___
-## Install/run from source code (i.e. the code in this repo)
-
-This repo's dependencies (`skellytracker`, `skellycam`, etc.) are pulled from
-private git repos via [`uv`](https://github.com/astral-sh/uv), so `conda` +
-`pip install -e .` will not work here — use `uv` instead:
-
-1) Install `uv`
-   - https://github.com/astral-sh/uv?tab=readme-ov-file#installation
-
-2) Clone the repository
-
-```bash
-git clone https://github.com/freemocap/freemocap
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                    AI Agent 平台 (MCP Host)                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌───────────────────┐   │
+│  │ LLM 核心    │  │ 任务规划器  │  │ MCP Client        │   │
+│  └─────────────┘  └─────────────┘  └─────────┬─────────┘   │
+│                                              │             │
+│  ┌───────────────────────────────────────────┼───────────┐ │
+│  │              存储池 (S3/MinIO)             │           │ │
+│  │  uploads/{user_id}/{session_id}/           │           │ │
+│  │  outputs/{user_id}/{session_id}/           │           │ │
+│  └───────────────────────────────────────────┼───────────┘ │
+└──────────────────────────────────────────────┼─────────────┘
+                                               │ MCP (JSON-RPC)
+                                               │ HTTP/SSE
+                                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│              FreeMoCap MCP Server (独立容器)                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  MCP 工具层 (fastapi-mcp)                              │  │
+│  │  ping / upload_video / process_2d / process_3d / ...  │  │
+│  └──────────────────────┬────────────────────────────────┘  │
+│                         ▼                                   │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  FastAPI 服务层 → Redis 队列 → 返回 task_id            │  │
+│  └──────────────────────┬────────────────────────────────┘  │
+│                         ▼                                   │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  Celery Worker (GPU/CPU) 执行 FreeMoCap 管线           │  │
+│  └──────────────────────┬────────────────────────────────┘  │
+│                         ▼                                   │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │  FreeMoCap 核心管线                                    │  │
+│  │  M2 标定 → M3 2D跟踪 → M4 三角化 → M5 后处理 → M6 导出 │  │
+│  │  + 2D 输出通道分支（M3 后可直接导出，跳过 M4/M5）       │  │
+│  └───────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-3) Navigate into the newly cloned/downloaded `freemocap` folder
+## MCP 工具清单
 
-```bash
-cd freemocap
-```
+| 工具名 | 描述 | 输入 | 输出 |
+|---|---|---|---|
+| `ping` | 测试 MCP 连接 | 无 | `{status: "ok"}` |
+| `upload_video` | 上传视频到存储池 | `user_id, session_id, file` | `{key, url}` |
+| `process_2d` | 2D 姿态提取 | `session_id, detector, model_size, ...` | `{task_id}` |
+| `process_3d` | 3D 骨架重建 | `session_id, calibration_key, ...` | `{task_id}` |
+| `calibrate` | 相机标定 | `video_urls` | `{task_id}` |
+| `get_task_status` | 查询任务状态 | `task_id` | `{status, result, progress}` |
+| `get_download_url` | 获取下载链接（预签名 URL） | `key` | `{url}` |
 
-4) Create a virtual environment
+## 技术栈
 
-```bash
-uv venv
-```
+| 组件 | 技术选型 | 职责 |
+|---|---|---|
+| MCP Server | FastAPI + `fastapi-mcp` | 暴露 MCP 工具 |
+| 任务队列 | Redis + Celery | 异步任务处理 |
+| 存储池 | MinIO / S3 / OSS | 文件存储 |
+| GPU Worker | Celery Worker + CUDA | 姿态估计（MediaPipe / RTMPose） |
+| CPU Worker | Celery Worker | 后处理、导出 |
+| 反向代理 | Nginx / Caddy | SSL、路由 |
+| 容器编排 | Docker Compose / K8s | 部署 |
+| 监控 | Prometheus + Grafana | 指标 |
+| 日志 | Loki / ELK | 日志聚合 |
 
-5) Install dependencies
+## 分阶段实施计划
 
-```bash
-uv sync
-```
+| 阶段 | 名称 | 目标 |
+|---|---|---|
+| P0 | 准备 | 环境搭建、依赖确认 |
+| P1 | 后端独立 | 剥离前端，FastAPI 独立运行 |
+| P2 | MCP 最小验证 | `fastapi-mcp` 包装验证，MCP Client 可调用 ping |
+| P3 | 2D 管道最小实现 | M3 后分支输出 `image_data.npy` |
+| P4 | 存储池集成 | S3/MinIO 读写 |
+| P5 | 任务队列 | Redis + Celery 异步任务 + 进度查询 |
+| P6 | 完整 3D 管线 | M2~M6 云端跑通 |
+| P7 | 2D 管道增强 | 骨架视频、静态图、多格式导出 |
+| P8 | 多租户隔离 | `user_id`/`session_id` 隔离 + 配额 |
+| P9 | GPU 调度 | 独立 Worker + 队列控制 |
+| P10 | 生产化部署 | Docker + K8s |
+| P11 | 测试与验收 | 端到端测试 |
+| P12 | 文档与交付 | 运维手册、API 文档 |
 
-This installs `skellytracker` with NVIDIA GPU acceleration on Windows/Linux, or
-CPU-only on macOS, automatically. If you're on Windows/Linux without a
-supported GPU, force the CPU-only build instead:
+关键路径：`P1 → P2 → P3 → P4 → P5 → P6 → P10 → P11 → P12`（P7/P8/P9 可并行）。
 
-```bash
-uv sync --no-default-groups --group cpu
-```
+## 开发环境
 
-6) Launch the Python server
+> 以下为上游 FreeMoCap 的开发方式，本分支在此基础上进行 MCP 化改造。
 
-```bash
-uv run python freemocap/__main__.py
-```
+### Python 后端
 
-The server starts on `http://localhost:8005`.
+1. 安装 [`uv`](https://github.com/astral-sh/uv?tab=readme-ov-file#installation)
+2. 克隆本仓库
+   ```bash
+   git clone git@github.com:AaronSwartz0217/freemocap_MCP.git
+   cd freemocap_MCP
+   ```
+3. 创建虚拟环境并安装依赖
+   ```bash
+   uv venv
+   uv sync          # 自动安装带 GPU 加速的 skellytracker（Windows/Linux）
+   # 无 GPU 时：uv sync --no-default-groups --group cpu
+   ```
+4. 启动 Python 服务
+   ```bash
+   uv run python freemocap/__main__.py
+   # 服务启动于 http://localhost:8005
+   ```
 
-7) In a separate terminal, launch the React/Electron GUI (requires
-   [Node.js](https://nodejs.org/en/download/)):
+### React GUI（上游保留，本分支不再维护）
 
 ```bash
 cd freemocap-ui
@@ -188,38 +162,47 @@ npm install
 npm run dev
 ```
 
-An Electron window should pop up with the FreeMoCap GUI!
+## 存储结构
 
-___
+```text
+{bucket}/
+├── uploads/{user_id}/{session_id}/
+│   ├── cam0.mp4, cam1.mp4, ...
+│   └── calibration.toml
+├── outputs/{user_id}/{session_id}/
+│   ├── 2d_pose/
+│   │   ├── image_data.npy / .csv / .json
+│   │   └── cam*_2d_pose.mp4
+│   └── 3d_skeleton/
+│       └── total_3d_skeleton.npy / .csv / .json
+└── temp/{session_id}/   # 处理中的临时文件，24h 自动清理
+```
 
-## Documentation 
+## 错误处理原则
 
-Our documenation is hosted at: https://freemocap.github.io/documentation/index_md.html
+遵循 FreeMoCap 的"响亮地失败"（Fail Loudly）原则：
+- 内部模块让异常冒泡
+- 错误信息带上下文
+- 在系统边界统一处理
+- 快速失败，不带病运行
 
-That site is built using `writerside` from this repository: https://github.com/freemocap/documentation
+## 相关链接
 
-___
+- FreeMoCap 官方文档：https://docs.freemocap.org
+- FreeMoCap 上游仓库：https://github.com/freemocap/freemocap
+- MCP 官方文档：https://modelcontextprotocol.io
+- `fastapi-mcp`：https://github.com/tadata-org/fastapi_mcp
 
+## 贡献
 
+请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-### Contribution Guidelines
+## 维护者
 
-Please read our contribution doc: [CONTRIBUTING.md](CONTRIBUTING.md)
-
-
-## Related
-
-[//]: # (* [project-name]&#40;#&#41; - Project description)
-
-## Maintainers
-
-* [Jon Matthis](https://github.com/jonmatthis)
-* [Endurance Idehen](https://github.com/endurance)
+上游 FreeMoCap：[Jon Matthis](https://github.com/jonmatthis)、[Endurance Idehen](https://github.com/endurance)
 
 ## License
 
-This project is licensed under the APGL License - see the [LICENSE](LICENSE) file for details.
+本项目遵循 **GNU Affero General Public License v3.0**。详见 [LICENSE](LICENSE)。
 
-If the AGPL does not work for your needs, we are happy to discuss terms to license this software to you with a different
-agreement at a price point that increases exponentially as you
-move [spiritually](https://www.gnu.org/philosophy/open-source-misses-the-point.en.html) away from the `AGPL`
+若 AGPL 不满足你的需求，可与上游团队协商其他授权条款。
