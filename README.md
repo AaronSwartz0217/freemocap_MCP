@@ -42,14 +42,15 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 
 ## 当前状态
 
-> **最新更新**：2026-09-21 — P6 完整 3D 管线封装完成，`POST /mocap-3d/run` 可提交 3D 动捕任务（video_dir + calibration_path），通过 `mocap.run_3d` 任务类型异步执行，5 阶段进度上报（加载视频→2D检测→同步→3D三角化→导出）；无 skellytracker 环境自动降级为模拟管线验证流程。
+> **最新更新**：2026-09-22 — 新增 MCP 友好的 COCO 格式骨架图端点 `POST /pose-2d/coco`，接受 base64 图片输入，返回 COCO 17 关键点骨架图（base64）+ 关键点 JSON + COCO 兼容标注；修复 MediaPipe `RepeatedCompositeContainer` 导致的 beartype 类型检查错误。已通过 MCP 协议完整调用验证（initialize → tools/list → tools/call）。
 >
-> **可用性**：✅ MCP 协议层 + 2D 单图姿势检测 + 存储池（local/S3）+ 任务队列（进程内降级）+ 3D 动捕任务提交/进度查询可正常使用；真实 3D 管线需云端环境（skellytracker + skellycam + 多机位视频）验证。
+> **可用性**：✅ MCP 协议层 + 2D 单图姿势检测（OpenPose 风格 + COCO 格式）+ 存储池（local/S3）+ 任务队列（进程内降级）+ 3D 动捕任务提交/进度查询可正常使用；真实 3D 管线需云端环境（skellytracker + skellycam + 多机位视频）验证。
 
 ## 更新日志
 
 | 日期 | 阶段 | 更新内容 | 状态 | 可用性 |
 |---|---|---|---|---|
+| 2026-09-22 | P3+ | 新增 COCO 格式骨架图端点 `POST /pose-2d/coco`：MCP 友好（base64 输入/输出），MediaPipe 33 关键点 → COCO 17 关键点映射，返回 COCO 风格骨架 PNG + 关键点 JSON + COCO 兼容标注（keypoints 扁平数组 + num_keypoints）；修复 `_detect_pose` 返回类型问题（MediaPipe `RepeatedCompositeContainer` → `list`）以通过 beartype 检查；MCP 协议端到端调用验证通过 | ✅ 已完成 | ✅ MCP 调用生成 COCO 骨架图验证通过 |
 | 2026-09-21 | P6 | 完整 3D 管线云端封装：新增 `mocap_3d_service.py` 封装 posthoc mocap 管线，注册 `mocap.run_3d` 任务类型；新增 `mocap_3d_router` 提供 `POST /mocap-3d/run` 端点；5 阶段进度上报（loading_videos→detection_2d→synchronization→triangulation_3d→exporting）；无 skellytracker 时自动降级为模拟管线 | ✅ 已完成 | ✅ 任务提交与进度查询可用，真实管线待云端验证 |
 | 2026-09-21 | P5 | 任务队列：新增 `freemocap/services/task_queue.py`，`InProcessTaskQueue`（线程池，开发降级）+ `CeleryTaskQueue`（Redis broker/backend）；`tasks_router` 提供提交/状态轮询/结果获取/取消端点；内置 `demo.echo`、`demo.long_task` 测试任务支持进度上报 | ✅ 已完成 | ✅ 进程内后端验证通过，Celery 后端待 Redis 环境验证 |
 | 2026-09-21 | P4 | 存储池集成：新增 `freemocap/services/storage.py` 抽象层（`LocalStorageBackend` + `S3StorageBackend`），`storage_router` 提供上传/下载/URL/删除/存在性检查端点；后端由 `FMC_STORAGE_BACKEND` 环境变量切换，S3 凭证全部走环境变量不硬编码 | ✅ 已完成 | ✅ 本地后端验证通过，S3 后端待 MinIO 环境验证 |
@@ -110,6 +111,7 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 |---|---|---|---|
 | `POST /pose-2d/image` | `post_pose_2d_image` | `file` (图片) | OpenPose 风格骨架 PNG |
 | `POST /pose-2d/json` | `post_pose_2d_json` | `file` (图片) | 33 个 MediaPipe 关键点 JSON |
+| `POST /pose-2d/coco` | `post_pose_2d_coco` | `image_base64` (base64 图片) | COCO 17 关键点骨架图（base64）+ 关键点 JSON + COCO 兼容标注 |
 
 ### 3D 动捕
 
@@ -186,11 +188,113 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
    ```
 4. 启动 Python 服务
    ```bash
-   uv run python freemocap/__main__.py
-   # 服务启动于 http://localhost:8000
+   # 方式 A：完整启动（需要 uv sync 安装全部依赖，含 skelly 全家桶）
+   uv run python -m freemocap
+
+   # 方式 B：最小启动（仅需 fastapi + fastapi-mcp + mediapipe + opencv，无需 skelly 依赖）
+   python run_minimal_mcp.py
    ```
+   服务启动于 `http://localhost:8000`
 
 > 本分支已去除上游的 Electron/React 前端，仅保留 Python 后端。前端能力通过 MCP 协议由 AI Agent 平台提供。
+
+## MCP 接入指引
+
+> **给 AI IDE / MCP Client 接入方**：如果你连接 `/mcp` 得到 `404 Not Found`，请先阅读本节。
+
+### 根因：不要连接桌面安装包
+
+FreeMoCap **桌面安装包**（alpha.23 及更早）是 PyInstaller 打包产物，**不含 MCP 代码**，其 `/mcp` 和 `/sse` 端点不存在。MCP 能力是本分支（`freemocap_MCP`）新增的，必须用**本仓库代码**启动服务。
+
+| 你连的是什么 | `/mcp` 结果 | 说明 |
+|---|---|---|
+| 桌面安装包（`freemocap_server.exe`） | ❌ 404 | 打包产物不含 MCP |
+| 本仓库 `python -m freemocap` | ✅ 200 | 完整后端，需 skelly 依赖 |
+| 本仓库 `python run_minimal_mcp.py` | ✅ 200 | 最小后端，仅需 fastapi+mediapipe |
+
+### 步骤 1：启动本仓库的服务
+
+**方式 A — 完整启动（推荐生产环境）**
+```bash
+git clone git@github.com:AaronSwartz0217/freemocap_MCP.git
+cd freemocap_MCP
+uv sync              # 安装全部依赖（skellycam/skellyforge/skellytracker 等，从 GitHub 拉取）
+uv run python -m freemocap
+```
+
+**方式 B — 最小启动（快速验证 MCP，无需 skelly 依赖）**
+```bash
+git clone git@github.com:AaronSwartz0217/freemocap_MCP.git
+cd freemocap_MCP
+pip install fastapi fastapi-mcp uvicorn mediapipe opencv-python-headless numpy python-multipart boto3 celery redis
+python run_minimal_mcp.py
+```
+
+启动后应看到日志：`MCP server mounted at /mcp (HTTP streamable) and /sse (SSE)`
+
+### 步骤 2：MCP Client 连接配置
+
+| 配置项 | 值 |
+|---|---|
+| 传输方式 | **Streamable HTTP**（首选）或 SSE |
+| URL | `http://<host>:8000/mcp`（Streamable HTTP） |
+| SSE URL | `http://<host>:8000/sse` |
+| 协议版本 | `2025-06-18` |
+
+**Trae IDE / Cursor 等 AI IDE 的 MCP 配置示例**（JSON）：
+```json
+{
+  "mcpServers": {
+    "freemocap": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
+### 步骤 3：验证连通
+
+服务启动后，`tools/list` 应返回 **14 个工具**：
+- `pose_2d_coco_pose_2d_*` — COCO 格式骨架图（MCP 推荐，base64 输入/输出）
+- `pose_2d_image_pose_2d_*` — 2D 骨架图（OpenPose 风格，需文件上传）
+- `pose_2d_json_pose_2d_*` — 2D 关键点 JSON
+- `upload_file_storage_*` / `download_file_storage_*` 等 — 存储池
+- `submit_task_tasks_*` / `get_task_status_tasks_*` 等 — 任务队列
+- `run_3d_mocap_mocap_3d_*` — 3D 动捕
+
+**命令行验证**（需带 `Mcp-Session-Id` 头，MCP 协议要求）：
+```bash
+# 1. initialize 握手（响应头含 Mcp-Session-Id）
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+
+# 2. 用返回的 session id 发送 initialized 通知 + tools/list
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: <session id>" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: <session id>" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+
+# 3. 调用 COCO 骨架图工具（image_base64 为图片的 base64 编码）
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: <session id>" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"pose_2d_coco_pose_2d_pose_2d_coco_post","arguments":{"image_base64":"<base64图片数据>"}}}'
+```
+
+**COCO 工具返回值**：
+- `skeleton_image_base64` — COCO 风格骨架 PNG（黑底彩色骨架）的 base64 编码
+- `keypoints` — 17 个 COCO 关键点（name, x, y, visibility）
+- `coco_annotations` — COCO 兼容标注（keypoints 扁平数组 [x,y,v,...] + num_keypoints + category_id）
 
 ## 存储结构
 
