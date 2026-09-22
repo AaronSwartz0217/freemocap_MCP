@@ -106,7 +106,6 @@ def _run_real_pipeline(
     from freemocap.core.tasks.mocap.posthoc_mocap_task import run_posthoc_mocap_aggregator_task
     from freemocap.core.tasks.mocap.mocap_task_config import PosthocMocapPipelineConfig
     from skellycam.core.recorders.videos.recording_info import RecordingInfo
-    from skellytracker.core import TrackerConfig
     import functools
     import multiprocessing
 
@@ -118,11 +117,12 @@ def _run_real_pipeline(
         full_recording_path=str(video_dir),
     )
 
-    # Build tracker config
-    tracker_config = TrackerConfig(tracker=tracker)
-
-    # Build mocap task config
+    # Build mocap task config. Pass `tracker` as `detector_type` so the config's
+    # model_validator builds the correct TrackerConfig (mediapipe HEAVY / rtmpose).
+    # Without this, detector_type defaults to "rtmpose" and the user's tracker
+    # choice is silently ignored.
     mocap_config = PosthocMocapPipelineConfig(
+        detector_type=tracker,
         calibration_toml_path=calibration_path,
     )
     task_fn = functools.partial(
@@ -139,7 +139,7 @@ def _run_real_pipeline(
 
     pipeline = PosthocPipeline.create(
         recording_info=recording_info,
-        detector_config=tracker_config,
+        detector_config=mocap_config.tracker_config,
         aggregation_task_fn=task_fn,
         pipeline_type=PosthocPipelineType.MOCAP,
         worker_registry=worker_registry,
