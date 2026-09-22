@@ -4,10 +4,14 @@ Bypasses the full FreeMoCap dependency chain (skellycam, skellyforge, etc.)
 so we can verify the MCP endpoints work with just fastapi + fastapi-mcp + mediapipe.
 """
 import sys
+import os
 import logging
 
+# Resolve project root from this script's location (works regardless of where the repo is cloned)
+_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 # Mock missing skelly packages before importing freemocap
-sys.path.insert(0, r"d:\本地动捕环境\freemocap_MCP\_mock_deps")
+sys.path.insert(0, os.path.join(_PROJECT_ROOT, "_mock_deps"))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,7 +19,7 @@ logger = logging.getLogger(__name__)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-sys.path.insert(0, r"d:\本地动捕环境\freemocap_MCP")
+sys.path.insert(0, _PROJECT_ROOT)
 
 from freemocap.api.http.mocap.pose_2d_router import pose_2d_router
 from freemocap.api.http.storage.storage_router import storage_router
