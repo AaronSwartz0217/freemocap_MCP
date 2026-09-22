@@ -255,7 +255,7 @@ async def call_coco(image_path: str):
 **A**: MCP 协议要求 `initialize` 后携带 `Mcp-Session-Id` 头。确保先调用 `initialize`，并将响应头中的 `Mcp-Session-Id` 用于后续请求。
 
 ### Q4: MediaPipe 报错 `module 'mediapipe' has no attribute 'solutions'`
-**A**: mediapipe 0.10.33 缺少 solutions 子模块，降级到 0.10.14：`pip install mediapipe==0.10.14`
+**A**: 此问题已通过 `pyproject.toml` 的 `[tool.uv] override-dependencies` 修复——`uv sync` 会直接安装 `mediapipe==0.10.14`（最后一个含 `solutions` 子模块的版本）。若仍遇到，手动执行 `pip install mediapipe==0.10.14` 覆盖。
 
 ### Q5: Windows 下中文路径报错
 **A**: 将系统代码页设为 UTF-8：`chcp 65001`，或确保项目路径不含中文。

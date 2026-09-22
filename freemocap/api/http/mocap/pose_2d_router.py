@@ -187,6 +187,13 @@ MEDIAPIPE_TO_COCO = {
     28: 16, # right_ankle
 }
 
+# Pre-built reverse mapping: COCO index -> MediaPipe index (avoids O(n^2) lookup
+# inside the per-frame conversion loop).
+_COCO_TO_MEDIAPIPE = [
+    next(mp_i for mp_i, coco_i in MEDIAPIPE_TO_COCO.items() if coco_i == coco_idx)
+    for coco_idx in range(len(COCO_KEYPOINT_NAMES))
+]
+
 # COCO skeleton connections (1-indexed in COCO spec, converted to 0-indexed here)
 COCO_SKELETON = [
     (15, 13), (13, 11), (16, 14), (14, 12), (11, 12),
@@ -212,26 +219,16 @@ def _mediapipe_to_coco_keypoints(landmarks: list[Any], width: int, height: int) 
     'visibility', and 'name'. Keypoints not detected get visibility=0.
     """
     coco_keypoints = []
-    for coco_idx in range(17):
-        # Find the MediaPipe index that maps to this COCO index
-        mp_idx = None
-        for mp_i, coco_i in MEDIAPIPE_TO_COCO.items():
-            if coco_i == coco_idx:
-                mp_idx = mp_i
-                break
-
+    for coco_idx, mp_idx in enumerate(_COCO_TO_MEDIAPIPE):
         name = COCO_KEYPOINT_NAMES[coco_idx]
-        if mp_idx is None or mp_idx >= len(landmarks):
-            coco_keypoints.append({
-                "name": name, "x": 0, "y": 0, "visibility": 0.0,
-            })
+        if mp_idx >= len(landmarks):
+            coco_keypoints.append({"name": name, "x": 0, "y": 0, "visibility": 0.0})
             continue
 
         lm = landmarks[mp_idx]
         x = int(lm.x * width)
         y = int(lm.y * height)
         visibility = float(getattr(lm, "visibility", 0.0))
-        # Clip to image bounds
         in_bounds = 0 <= x < width and 0 <= y < height
         coco_keypoints.append({
             "name": name,
