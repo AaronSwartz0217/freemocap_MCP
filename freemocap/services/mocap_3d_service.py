@@ -61,6 +61,13 @@ def run_3d_mocap(payload: dict, report_progress: Callable) -> dict:
         raise FileNotFoundError(f"video_dir not found: {video_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if tracker == "rtmpose":
+        logger.warning(
+            "3D mocap running with tracker='rtmpose' — output will be 2D-only "
+            "(Z-axis = 0), skeleton will be flat. Use 'mediapipe' for true 3D."
+        )
+
     logger.info("Starting 3D mocap: video_dir=%s tracker=%s", video_dir, tracker)
 
     # ---- Attempt to use the real pipeline ----
