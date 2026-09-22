@@ -242,8 +242,14 @@ async def call_coco(image_path: str):
 ### Q1: 连接 `/mcp` 返回 404
 **A**: 你连接的是 FreeMoCap 桌面安装包，不含 MCP 代码。必须用本仓库代码启动服务（见第 3 节）。
 
-### Q2: `tools/list` 返回的工具少于 14 个
-**A**: 你用的是最小启动脚本（`run_minimal_mcp.py`），它只注册了 `pose_2d_router`，仅 2D 相关工具可用。如需全部工具，用完整启动方式。
+### Q2: 不同启动方式暴露的工具数不同
+
+| 启动方式 | 注册的 router | `tools/list` 工具数 |
+|---|---|---|
+| **最小启动** (`run_minimal_mcp.py`) | pose_2d, storage, tasks, mocap_3d（共 4 个） | **14 个** |
+| **完整启动** (`python -m freemocap`) | 全部上游 + 新增 router（共 15 个） | **48+ 个** |
+
+最小启动注册了所有不依赖 skellycam/skellytracker 的新增路由（pose_2d、storage、tasks、mocap_3d），并非只注册 1 个。如需相机控制、录制、标定、Blender 等上游工具，用完整启动方式。
 
 ### Q3: 调用 `tools/call` 返回 400 "Missing session ID"
 **A**: MCP 协议要求 `initialize` 后携带 `Mcp-Session-Id` 头。确保先调用 `initialize`，并将响应头中的 `Mcp-Session-Id` 用于后续请求。

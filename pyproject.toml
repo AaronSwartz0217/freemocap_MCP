@@ -83,7 +83,11 @@ packages = ["freemocap"]
   override-dependencies = [
       "numpy>=2.3.4,<2.5",  # <2.5: NumPy 2.5 changed ScalarT internals, breaking beartype's NDArray introspection
       "pandas>=2.2.2,<3",  # pandas<2.2.2 wheels are built against the NumPy 1.x C ABI and crash importing against NumPy 2.x; <3 avoids the major-version jump
-      "mediapipe==0.10.33; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+      # 0.10.33 dropped the `solutions` submodule, so `mp.solutions.pose` used by
+      # pose_2d_router raises AttributeError and takes cv2 down with it inside the
+      # same try/except guard, killing all three /pose-2d/* endpoints (503).
+      # 0.10.14 is the last release where mp.solutions.pose works.
+      "mediapipe==0.10.14; sys_platform != 'darwin' or platform_machine != 'x86_64'",
   ]
 
   # This project uses opencv-contrib-python (a superset of opencv-python); having
