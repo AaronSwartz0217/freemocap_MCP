@@ -1,5 +1,6 @@
 import inspect
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -65,10 +66,31 @@ class ExportToBlenderRequest(BaseModel):
 
 
 
+class BlenderMCPGuide(BaseModel):
+    """Guidance for AI agents to connect to a Blender MCP server for post-processing."""
+    available: bool = False
+    transport: str | None = None  # "stdio" | "sse" | "http"
+    command: str | None = None  # for stdio transport, e.g. "uvx blender-mcp"
+    url: str | None = None  # for sse/http transport
+    capabilities: list[str] = Field(
+        default_factory=lambda: [
+            "Open the generated .blend file",
+            "Edit skeleton / rig / materials / lighting",
+            "Render animation frames or video",
+            "Export to FBX / GLB / BVH for other DCC tools",
+        ]
+    )
+    next_step_hint: str = (
+        "Connect to the Blender MCP server to open the .blend file and perform "
+        "post-processing (materials, rendering, FBX export, etc.)."
+    )
+
+
 class ExportToBlenderResponse(BaseModel):
     success: bool
     message: str | None = None
     blender_file_path: str | None = None
+    blender_mcp_guide: BlenderMCPGuide | None = None
 
 
 class OpenInBlenderRequest(BaseModel):
@@ -89,6 +111,30 @@ class OpenInBlenderResponse(BaseModel):
     success: bool
     message: str | None = None
     blend_file_path: str | None = None
+
+
+# ==================== Helpers ====================
+
+
+def _detect_blender_mcp() -> BlenderMCPGuide:
+    """Detect if a Blender MCP server is configured via environment variables.
+
+    Supported env vars:
+      - BLENDER_MCP_URL: SSE/HTTP transport URL (e.g. http://localhost:9876/sse)
+      - BLENDER_MCP_COMMAND: stdio transport command (e.g. "uvx blender-mcp")
+    """
+    guide = BlenderMCPGuide()
+    url = os.getenv("BLENDER_MCP_URL")
+    command = os.getenv("BLENDER_MCP_COMMAND")
+    if url:
+        guide.available = True
+        guide.transport = "sse" if url.endswith("/sse") else "http"
+        guide.url = url
+    elif command:
+        guide.available = True
+        guide.transport = "stdio"
+        guide.command = command
+    return guide
 
 
 # ==================== Endpoints ====================
@@ -162,6 +208,9 @@ def export_to_blender_endpoint(request: ExportToBlenderRequest) -> ExportToBlend
     - The freemocap_blender_addon Python package must be installed in the server's environment.
     - Output: a .blend file saved inside recording_folder_path (e.g. recording_name.blend).
     - This runs Blender in --background mode (no GUI) to generate the .blend file.
+    - The response includes `blender_mcp_guide`: if a Blender MCP server is configured
+      (via BLENDER_MCP_URL or BLENDER_MCP_COMMAND env vars), the guide tells the agent
+      how to connect to it for post-processing (materials, rendering, FBX export, etc.).
     """
     try:
         recording_folder = Path(request.recording_folder_path)
@@ -190,6 +239,7 @@ def export_to_blender_endpoint(request: ExportToBlenderRequest) -> ExportToBlend
             success=True,
             message="Export to Blender completed",
             blender_file_path=request.blend_file_path,
+            blender_mcp_guide=_detect_blender_mcp(),
         )
     except HTTPException:
         raise
