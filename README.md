@@ -50,6 +50,7 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 
 | 日期 | 阶段 | 更新内容 | 状态 | 可用性 |
 |---|---|---|---|---|
+| 2026-09-22 | 优化 | ①`_mediapipe_to_coco_keypoints` 预建 COCO→MediaPipe 反向映射列表（`_COCO_TO_MEDIAPIPE`），将每帧转换从 O(n²) 嵌套循环降为 O(1) 索引；②`MCP接入指南.md` Q4 更新为"已通过 pyproject.toml override 修复，uv sync 自动安装 0.10.14"，与实际配置一致 | ✅ 已完成 | ✅ |
 | 2026-09-22 | 修复 | 修复三处部署问题：①`run_minimal_mcp.py` 硬编码绝对路径改为 `os.path.dirname(os.path.abspath(__file__))` 相对路径；②`pyproject.toml` `[tool.uv] override-dependencies` 将 `mediapipe==0.10.33` 改为 `0.10.14`（0.10.33 缺 `solutions` 子模块，完整启动下 `/pose-2d/*` 三端点全部 503）；③`MCP接入指南.md` Q2 修正最小启动 router 数量（实际注册 4 个，暴露 14 个工具） | ✅ 已完成 | ✅ 完整启动 + 最小启动 2D 能力均可用 |
 | 2026-09-22 | P3+ | 新增 COCO 格式骨架图端点 `POST /pose-2d/coco`：MCP 友好（base64 输入/输出），MediaPipe 33 关键点 → COCO 17 关键点映射，返回 COCO 风格骨架 PNG + 关键点 JSON + COCO 兼容标注（keypoints 扁平数组 + num_keypoints）；修复 `_detect_pose` 返回类型问题（MediaPipe `RepeatedCompositeContainer` → `list`）以通过 beartype 检查；MCP 协议端到端调用验证通过 | ✅ 已完成 | ✅ MCP 调用生成 COCO 骨架图验证通过 |
 | 2026-09-21 | P6 | 完整 3D 管线云端封装：新增 `mocap_3d_service.py` 封装 posthoc mocap 管线，注册 `mocap.run_3d` 任务类型；新增 `mocap_3d_router` 提供 `POST /mocap-3d/run` 端点；5 阶段进度上报（loading_videos→detection_2d→synchronization→triangulation_3d→exporting）；无 skellytracker 时自动降级为模拟管线 | ✅ 已完成 | ✅ 任务提交与进度查询可用，真实管线待云端验证 |
