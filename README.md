@@ -176,6 +176,20 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 |---|---|---|---|
 | `POST /mocap-3d/run` | `post_mocap_3d_run` | `video_dir`, `calibration_path?`, `tracker?` | `task_id`（异步任务） |
 
+#### 3D 模式支持说明
+
+| 模式 | 输入要求 | tracker | 深度来源 | 输出 |
+|---|---|---|---|---|
+| **单目视频 3D** | 单个视频文件/目录，无需标定 | `mediapipe` | MediaPipe 单目深度估计（`monocular_mediapipe`） | 3D 骨架（有 Z 轴，但绝对尺度不精确） |
+| **多机位 3D** | 多个同步视频 + Charuco 标定文件 `.toml` | `mediapipe`（推荐） | 多视角三角测量（精确 3D） | 精确 3D 骨架 + 重投影误差 |
+| **多机位 2D-only** | 多个同步视频 + 标定文件 | `rtmpose` | 无（Z 轴 = 0） | 扁平骨架（仅 2D 投影） |
+
+**注意事项**：
+- 单目 3D 模式下 `calibration_path` 可省略，MediaPipe 会从单帧估计深度，但绝对尺度（米）可能不准确，适合相对运动分析
+- 多机位 3D 需要 Charuco 板标定（5×3 网格，54mm 方块），`calibration_path` 指向标定 `.toml` 文件
+- `rtmpose` 不产生深度数据，仅输出 2D 关键点，Z 轴全为 0，选择时会收到警告
+- 所有模式输出 `.npy` 格式 3D 关键点数据，Blender 导出仅支持 `mediapipe` 模式
+
 ### 存储池
 
 | 端点 | MCP 工具名 | 输入 | 输出 |
