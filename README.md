@@ -60,6 +60,42 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 
 > P7~P12（2D 增强 / 多租户 / GPU 调度 / 生产化部署 / 测试验收 / 文档交付）已取消，当前 P0~P6 已满足核心目标：动捕能力通过 MCP 协议暴露给 AI Agent 平台调用。
 
+## 详细更新过程
+
+### 2026-09-22 — COCO 格式骨架图端点（MCP 友好）
+
+**需求**：通过 MCP 协议调用生成 COCO 格式（17 关键点）骨架图。
+
+**实现步骤**：
+
+1. **COCO 关键点映射**
+   - 定义 COCO 17 关键点名称（nose, eyes, ears, shoulders, elbows, wrists, hips, knees, ankles）
+   - 建立 MediaPipe 33 关键点 → COCO 17 关键点的索引映射表
+   - 定义 COCO 标准骨架连接（19 条骨骼连线）和配色
+
+2. **新增端点 `POST /pose-2d/coco`**
+   - 输入：`CocoPoseRequest`（`image_base64` 字符串，支持 `data:image/png;base64,...` 前缀）
+   - 处理：base64 解码 → MediaPipe 检测 → 转换为 COCO 关键点 → 绘制 COCO 骨架图
+   - 输出：
+     - `skeleton_image_base64` — COCO 风格骨架 PNG（黑底 + 彩色骨架）
+     - `keypoints` — 17 个 COCO 关键点（name, x, y, visibility）
+     - `coco_annotations` — COCO 兼容标注（keypoints 扁平数组 [x,y,v,...] + num_keypoints + category_id）
+
+3. **Bug 修复**
+   - **问题**：MediaPipe 返回的 `result.pose_landmarks.landmark` 是 `RepeatedCompositeContainer` 类型，不满足 `_detect_pose` 的 `list[Any] | None` 类型注解，被 `beartype` 拦截返回 500
+   - **修复**：`return list(result.pose_landmarks.landmark)`，转换为 Python 原生 list
+
+4. **MCP 协议端到端验证**
+   - `initialize` 握手 → 获取 `Mcp-Session-Id`
+   - `notifications/initialized` 通知
+   - `tools/list` → 返回 14 个工具（新增 `pose_2d_coco_pose_2d_pose_2d_coco_post`）
+   - `tools/call` → 传入测试图片 base64，成功返回 17 个 COCO 关键点 + 骨架图
+   - 验证结果：所有关键点 visibility > 0.6，骨架图正确绘制
+
+5. **文档与提交**
+   - 更新 README：当前状态、更新日志、MCP 工具清单、接入指引
+   - commit `0ee6b959` 推送到 GitHub
+
 ## 总体架构
 
 ```text
