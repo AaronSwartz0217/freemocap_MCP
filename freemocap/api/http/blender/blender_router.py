@@ -96,7 +96,12 @@ class OpenInBlenderResponse(BaseModel):
 
 @blender_router.get("/detect")
 def detect_blender() -> DetectBlenderResponse:
-    """Detect the Blender executable on the user's system."""
+    """Detect if Blender is installed on the server.
+
+    MCP usage note: Call this FIRST before any Blender export.
+    Returns blender_exe_path if found, which should be passed to /blender/export.
+    If not found, Blender export will fail — the server must have Blender installed locally.
+    """
     try:
         blender_path = get_best_guess_of_blender_path()
         if blender_path is None:
@@ -116,7 +121,12 @@ def detect_blender() -> DetectBlenderResponse:
 
 @blender_router.post("/addon/install")
 def install_addon(request: InstallAddonRequest) -> InstallAddonResponse:
-    """Install the freemocap_blender_addon into Blender (optional, not required for export)."""
+    """Install the freemocap_blender_addon into Blender.
+
+    MCP usage note: This is optional for export — /blender/export works by injecting
+    the addon directly into Blender's sys.path. Install the addon only if you want it
+    available in Blender's GUI addon menu. Requires Blender to be installed.
+    """
     try:
         if request.blender_exe_path is None:
             request.blender_exe_path = get_best_guess_of_blender_path()
@@ -142,7 +152,17 @@ def install_addon(request: InstallAddonRequest) -> InstallAddonResponse:
 
 @blender_router.post("/export")
 def export_to_blender_endpoint(request: ExportToBlenderRequest) -> ExportToBlenderResponse:
-    """Export a recording session to a .blend file. Works without addon installation."""
+    """Export a 3D mocap recording to a .blend file.
+
+    MCP usage notes:
+    - Prerequisite: the recording must have been processed with tracker='mediapipe' (NOT rtmpose).
+      RTMPose output is not supported by the freemocap_blender_addon and will raise ValueError.
+    - The recording_folder_path must contain an 'output_data' subfolder with mediapipe_body_3d_xyz.npy.
+    - Blender must be installed on the server (call /blender/detect first, or pass blenderExePath).
+    - The freemocap_blender_addon Python package must be installed in the server's environment.
+    - Output: a .blend file saved inside recording_folder_path (e.g. recording_name.blend).
+    - This runs Blender in --background mode (no GUI) to generate the .blend file.
+    """
     try:
         recording_folder = Path(request.recording_folder_path)
         if not recording_folder.is_dir():
@@ -183,7 +203,12 @@ def export_to_blender_endpoint(request: ExportToBlenderRequest) -> ExportToBlend
 
 @blender_router.post("/open")
 def open_in_blender_endpoint(request: OpenInBlenderRequest) -> OpenInBlenderResponse:
-    """Open an existing .blend file in the given recording folder with Blender (GUI, non-blocking)."""
+    """Open an existing .blend file in Blender GUI.
+
+    MCP usage note: Only works on a server with a graphical display.
+    Calls /blender/export first to generate the .blend file, then launches Blender GUI.
+    On headless servers, use /blender/export instead (it runs in --background mode).
+    """
     try:
         recording_folder = Path(request.recording_folder_path)
         if not recording_folder.is_dir():
