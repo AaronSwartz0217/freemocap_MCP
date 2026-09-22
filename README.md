@@ -42,7 +42,7 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 
 ## 当前状态
 
-> **最新更新**：2026-09-22 — 新增 MCP 友好的 COCO 格式骨架图端点 `POST /pose-2d/coco`，接受 base64 图片输入，返回 COCO 17 关键点骨架图（base64）+ 关键点 JSON + COCO 兼容标注；修复 MediaPipe `RepeatedCompositeContainer` 导致的 beartype 类型检查错误。已通过 MCP 协议完整调用验证（initialize → tools/list → tools/call）。
+> **最新更新**：2026-09-22 — 修复三处部署问题：`run_minimal_mcp.py` 硬编码绝对路径改为 `__file__` 相对路径（跨机器可用）；`pyproject.toml` 的 `[tool.uv] override-dependencies` 将 mediapipe 从 `0.10.33` 锁定为 `0.10.14`（0.10.33 缺少 `solutions` 子模块，会导致 `/pose-2d/*` 三个端点在完整启动下全部 503）；修正 `MCP接入指南.md` Q2 中最小启动 router 数量描述（实际注册 4 个 router，暴露 14 个工具）。
 >
 > **可用性**：✅ MCP 协议层 + 2D 单图姿势检测（OpenPose 风格 + COCO 格式）+ 存储池（local/S3）+ 任务队列（进程内降级）+ 3D 动捕任务提交/进度查询可正常使用；真实 3D 管线需云端环境（skellytracker + skellycam + 多机位视频）验证。
 
@@ -50,6 +50,7 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 
 | 日期 | 阶段 | 更新内容 | 状态 | 可用性 |
 |---|---|---|---|---|
+| 2026-09-22 | 修复 | 修复三处部署问题：①`run_minimal_mcp.py` 硬编码绝对路径改为 `os.path.dirname(os.path.abspath(__file__))` 相对路径；②`pyproject.toml` `[tool.uv] override-dependencies` 将 `mediapipe==0.10.33` 改为 `0.10.14`（0.10.33 缺 `solutions` 子模块，完整启动下 `/pose-2d/*` 三端点全部 503）；③`MCP接入指南.md` Q2 修正最小启动 router 数量（实际注册 4 个，暴露 14 个工具） | ✅ 已完成 | ✅ 完整启动 + 最小启动 2D 能力均可用 |
 | 2026-09-22 | P3+ | 新增 COCO 格式骨架图端点 `POST /pose-2d/coco`：MCP 友好（base64 输入/输出），MediaPipe 33 关键点 → COCO 17 关键点映射，返回 COCO 风格骨架 PNG + 关键点 JSON + COCO 兼容标注（keypoints 扁平数组 + num_keypoints）；修复 `_detect_pose` 返回类型问题（MediaPipe `RepeatedCompositeContainer` → `list`）以通过 beartype 检查；MCP 协议端到端调用验证通过 | ✅ 已完成 | ✅ MCP 调用生成 COCO 骨架图验证通过 |
 | 2026-09-21 | P6 | 完整 3D 管线云端封装：新增 `mocap_3d_service.py` 封装 posthoc mocap 管线，注册 `mocap.run_3d` 任务类型；新增 `mocap_3d_router` 提供 `POST /mocap-3d/run` 端点；5 阶段进度上报（loading_videos→detection_2d→synchronization→triangulation_3d→exporting）；无 skellytracker 时自动降级为模拟管线 | ✅ 已完成 | ✅ 任务提交与进度查询可用，真实管线待云端验证 |
 | 2026-09-21 | P5 | 任务队列：新增 `freemocap/services/task_queue.py`，`InProcessTaskQueue`（线程池，开发降级）+ `CeleryTaskQueue`（Redis broker/backend）；`tasks_router` 提供提交/状态轮询/结果获取/取消端点；内置 `demo.echo`、`demo.long_task` 测试任务支持进度上报 | ✅ 已完成 | ✅ 进程内后端验证通过，Celery 后端待 Redis 环境验证 |
@@ -95,6 +96,25 @@ FreeMoCap 是一个开源无标记动作捕捉系统。本分支（`freemocap_MC
 5. **文档与提交**
    - 更新 README：当前状态、更新日志、MCP 工具清单、接入指引
    - commit `0ee6b959` 推送到 GitHub
+
+### 2026-09-22 — 部署问题修复（路径 / mediapipe 版本 / 指南）
+
+**背景**：代码审查中发现三处影响可复现部署的问题。
+
+**修复 1：`run_minimal_mcp.py` 硬编码绝对路径**
+- **问题**：脚本中 `sys.path.insert(0, r"d:\本地动捕环境\freemocap_MCP\_mock_deps")` 写死了开发机路径，换机器/换目录直接失败
+- **修复**：改用 `_PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))`，`_mock_deps` 和项目根目录均基于脚本位置解析
+- **commit**：`126df511`
+
+**修复 2：mediapipe 版本冲突（0.10.33 → 0.10.14）**
+- **问题**：`pyproject.toml` 的 `[tool.uv] override-dependencies` 锁定 `mediapipe==0.10.33`，而 0.10.33 移除了 `solutions` 子模块。`pose_2d_router.py` 的导入守卫中 `mp.solutions.pose.Pose()` 抛 `AttributeError`，同一 try 块内 `cv2` 被一并置 None，导致完整启动下 `/pose-2d/image`、`/pose-2d/json`、`/pose-2d/coco` 三个端点全部 503
+- **修复**：将 override 改为 `mediapipe==0.10.14`（最后一个含 `solutions` 的版本），并添加注释说明原因。此修改落入 `pyproject.toml`，`uv sync` 可复现，无需手动 `uv pip install` 补丁
+- **commit**：`cc2d85ee`
+
+**修复 3：`MCP接入指南.md` Q2 描述错误**
+- **问题**：指南 Q2 称最小启动脚本"只注册了 `pose_2d_router`"，实际注册了 4 个 router（pose_2d、storage、tasks、mocap_3d）
+- **修复**：Q2 改为对照表，标注最小启动暴露 14 个工具、完整启动暴露 48+ 个工具
+- **commit**：`cc2d85ee`
 
 ## 总体架构
 
